@@ -16,7 +16,8 @@ from objects.dam import (
     DAMSubSoil,
     DAMPoint,
     DAMSoilProfile,
-    DAMSoilLayer
+    DAMSoilLayer,
+    DAMStage
 )
 
 def test_database():
@@ -29,23 +30,27 @@ def test_database():
     # 1. Create mock data
     soil = DAMSoil(name="Clay", unsaturated_weight=18.0, saturated_weight=20.0, color="#FF0000")
     
-    # Using point_type as defined in objects/dam.py
     point = DAMPoint(l=0.0, x=0.0, y=0.0, z=0.0, point_type="DIKE_CREST")
     surfaceline = DAMSurfaceLine(id="SL1", points=[point])
     
-    profile = DAMSoilProfile(name="Default", layers=[])
-    subsoil = DAMSubSoil(crest_profile=profile, toe_profile=profile, probability=0.5)
+    profile = DAMSoilProfile(id="P1", layers=[])
+    subsoil = DAMSubSoil(crest_profile=profile, toe_profile=profile, probability=50)
     location = DAMLocation(id="LOC1", surfaceline=surfaceline, subsoils=[subsoil])
     
     dam_input = DAMInput(soils=[soil], locations=[location])
     
-    scenario = DAMScenario(
-        name="daily", 
-        stage=0, 
-        location=location, 
+    stage = DAMStage(
+        index=0,
         traffic_load_magnitude=5.0,
         waterlevel_river=2.0,
-        waterlevel_polder=-1.0
+        waterlevel_polder=-1.0,
+        hydraulic_head=1.0
+    )
+    
+    scenario = DAMScenario(
+        name="daily", 
+        location=location,
+        stages=[stage]
     )
     
     analysis = DAMAnalysis(input=dam_input, scenarios=[scenario])
@@ -66,20 +71,18 @@ def test_database():
         assert loaded_analysis.input.soils[0].name == "Clay"
         assert len(loaded_analysis.input.locations) == 1
         assert loaded_analysis.input.locations[0].id == "LOC1"
+        assert loaded_analysis.input.locations[0].subsoils[0].probability == 50
         assert len(loaded_analysis.scenarios) == 1
         assert loaded_analysis.scenarios[0].name == "daily"
         assert loaded_analysis.scenarios[0].location is not None
         assert loaded_analysis.scenarios[0].location.id == "LOC1"
+        assert len(loaded_analysis.scenarios[0].stages) == 1
+        assert loaded_analysis.scenarios[0].stages[0].index == 0
+        assert loaded_analysis.scenarios[0].stages[0].traffic_load_magnitude == 5.0
         
         print("Verification SUCCESSFUL!")
     except AssertionError as e:
         print(f"Verification FAILED: {e}")
-        # Print some details for debugging
-        print(f"Soils: {len(loaded_analysis.input.soils)}")
-        print(f"Locations: {len(loaded_analysis.input.locations)}")
-        print(f"Scenarios: {len(loaded_analysis.scenarios)}")
-        if loaded_analysis.scenarios:
-            print(f"Scenario location: {loaded_analysis.scenarios[0].location}")
         sys.exit(1)
     
     if os.path.exists(db_file):

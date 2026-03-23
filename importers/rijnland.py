@@ -18,6 +18,7 @@ from objects.dam import (
     DAMInput,
     DAMScenario,
     DAMAnalysis,
+    DAMStage,
 )
 
 BOTTOM_LEVEL = -9999.0
@@ -147,7 +148,7 @@ def get_segments(path):
         args = [a.strip() for a in line.split(";")]
         result[args[0]] = {
             "soilgeometry2D_name": args[1],
-            "probability": float(args[2]),
+            "probability": int(float(args[2])),
         }
     return result
 
@@ -297,7 +298,7 @@ def import_rijnland(path):
         elif filename.find("locations_peilen.shp") > -1:
             waterlevels = get_waterlevels(os.path.join(path, filename))
         elif filename.find("stijghoogteAtLocations.shp") > -1:
-            hydraulic_head = get_hydraulic_head(os.path.join(path, filename))
+            hydraulic_heads = get_hydraulic_head(os.path.join(path, filename))
         elif filename.find("toetspeil_V1.shp") > -1:
             design_waterlevel = get_design_waterlevel(os.path.join(path, filename))
         elif filename.find("verkeersbelasting_stbi1.shp") > -1:
@@ -354,7 +355,7 @@ def import_rijnland(path):
             bottom_level = float(l["top_level"])
 
         dam_soilprofiles[k] = DAMSoilProfile(
-            name=k,
+            id=k,
             layers=soillayers,
         )
 
@@ -484,30 +485,31 @@ def import_rijnland(path):
     dam_scenarios = []
     for location in dam_locations:
         for subsoil in location.subsoils:
+            stages = []
             daily_level = design_waterlevel[location.id]["streefpeil"]
             extreme_level = design_waterlevel[location.id]["toetspeil"]
             polder_level = waterlevels[location.id]["max"]
             traffic_load = traffic_loads[location.surfaceline.id]["magnitude"]
+            hydraulic_head = hydraulic_heads[location.id]
 
-            dam_scenarios.append(
-                DAMScenario(
-                    name="dagelijks",
-                    stage=0,
-                    location=location,
-                    traffic_load_magnitude=traffic_load,
-                    waterlevel_river=daily_level,
-                    waterlevel_polder=polder_level,
-                )
+            stage_1 = DAMStage(
+                index=0,
+                traffic_load_magnitude=traffic_load,
+                waterlevel_river=daily_level,
+                waterlevel_polder=polder_level,
+                hydraulic_head=hydraulic_head,
+            )
+            stage_2 = DAMStage(
+                index=1,
+                traffic_load_magnitude=traffic_load,
+                waterlevel_river=extreme_level,
+                waterlevel_polder=polder_level,
+                hydraulic_head=hydraulic_head,
             )
 
             dam_scenarios.append(
                 DAMScenario(
-                    name="maatgevend",
-                    stage=1,
-                    location=location,
-                    traffic_load_magnitude=traffic_load,
-                    waterlevel_river=extreme_level,
-                    waterlevel_polder=polder_level,
+                    name="dagelijks", location=location, stages=[stage_1, stage_2]
                 )
             )
 

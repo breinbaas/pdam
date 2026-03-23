@@ -2,6 +2,8 @@ from enum import IntEnum
 from typing import List, Optional
 from pydantic import BaseModel
 from geolib.models.dstability.internal import PersistableShadingTypeEnum
+import logging
+from pathlib import Path
 
 
 class DAMPointType(IntEnum):
@@ -67,7 +69,7 @@ class DAMSoilLayer(BaseModel):
 
 
 class DAMSoilProfile(BaseModel):
-    name: str = ""
+    id: str = ""
     layers: List[DAMSoilLayer] = []
 
 
@@ -101,7 +103,7 @@ class DAMSurfaceLine(BaseModel):
 class DAMSubSoil(BaseModel):
     crest_profile: DAMSoilProfile = None
     toe_profile: DAMSoilProfile = None
-    probability: float = 0.0
+    probability: int = 0
 
 
 class DAMLocation(BaseModel):
@@ -115,15 +117,53 @@ class DAMInput(BaseModel):
     locations: List[DAMLocation] = []
 
 
-class DAMScenario(BaseModel):
-    name: str = ""
-    stage: int = 0
-    location: DAMLocation = None
+class DAMStage(BaseModel):
+    index: int
     traffic_load_magnitude: float = 0.0
     waterlevel_river: float = 0.0
     waterlevel_polder: float = 0.0
+    hydraulic_head: float = 0.0
+
+
+class DAMScenario(BaseModel):
+    name: str = ""
+    location: DAMLocation = None
+    stages: List[DAMStage] = []
 
 
 class DAMAnalysis(BaseModel):
     input: DAMInput = None
     scenarios: List[DAMScenario] = []
+
+    def create_stix(self, output_path: str):
+        for scenario in self.scenarios:
+            for (
+                subsoil
+            ) in scenario.location.subsoils:  # a scenario can contain multiple subsoils
+                # a scenario can contain multiple stages so create one stix file with 1 scenario and n stages
+                name = f"{scenario.location.id}_{scenario.name}_{subsoil.crest_profile.id}_{subsoil.toe_profile.id}_{subsoil.probability:03d}"
+                logging.info(f"Handling '{name}'")
+                log_filename = Path(output_path) / f"{name}.log"
+                flog = open(log_filename, "w")
+                flog.write(f"LOCATIE: {scenario.location.id}\n")
+                flog.write(f"SCENARIO: {scenario.name}\n")
+                flog.write(f"PROBABILITY ONDERGROND: {subsoil.probability}%\n")
+                flog.write("-" * 80 + "\n")
+                flog.write(f"GRONDOPBOUW KRUIN ({subsoil.crest_profile.id})\n")
+                flog.write("-" * 80 + "\n")
+                for layer in subsoil.crest_profile.layers:
+                    flog.write(
+                        f"{layer.top:10.2f},{layer.bottom:10.2f}, {layer.soil_name}\n"
+                    )
+                flog.write("-" * 80 + "\n")
+                flog.write(f"GRONDOPBOUW TEEN ({subsoil.toe_profile.id})\n")
+                flog.write("-" * 80 + "\n")
+                for layer in subsoil.toe_profile.layers:
+                    flog.write(
+                        f"{layer.top:10.2f},{layer.bottom:10.2f}, {layer.soil_name}\n"
+                    )
+                flog.write("-" * 80 + "\n")
+                stix_path = Path(output_path) / f"{name}.stix"
+                flog.close()
+                break
+            break
