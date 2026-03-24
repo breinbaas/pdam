@@ -50,7 +50,8 @@ def rijnland_phreatic_line_algorithm(
     params: dict,
 ):
     # P1 = Meest linker punt
-    p1 = [surfaceline.left, waterlevel_river]
+    pl_points = []
+    pl_points.append((surfaceline.left, waterlevel_river))
 
     intersections_at_waterlevel_river = surfaceline.intersections_at_z(waterlevel_river)
 
@@ -59,41 +60,48 @@ def rijnland_phreatic_line_algorithm(
 
     # P2 = Snijpunt waterlijn en dijk
     p2 = intersections_at_waterlevel_river[0]
+    pl_points.append(p2)
 
     # P3 = Buitenkruin
     if not surfaceline.has_point_type(DAMPointType.DIKE_CREST_WATER_SIDE):
         raise ValueError("No dike crest water side found")
     p = surfaceline.get_point_by_type(DAMPointType.DIKE_CREST_WATER_SIDE).as_lz()
-    p3 = (p[0], p2[1] - params["offset_dike_crest_water_side"])
+
+    if p[0] > pl_points[-1][0]:
+        p3 = (
+            p[0],
+            min(pl_points[-1][1], p[1] - params["offset_dike_crest_water_side"]),
+        )
+        pl_points.append(p3)
 
     # P4 = Binnenkruin
     p = surfaceline.get_point_by_type(DAMPointType.DIKE_CREST_LAND_SIDE).as_lz()
-    p4 = (p[0], p[1] - params["offset_dike_crest_land_side"])
+    p4 = (p[0], min(pl_points[-1][1], p[1] - params["offset_dike_crest_land_side"]))
+    pl_points.append(p4)
 
     # P5 = OPTIONAL Insteek berm waterzijde
-    if surfaceline.has_point_type(DAMPointType.BERM_CREST_WATER_SIDE):
-        p = surfaceline.get_point_by_type(DAMPointType.BERM_CREST_WATER_SIDE).as_lz()
-        p5 = (p[0], p[1] - params["offset_surface_line"])
-    else:
-        p5 = None
+    if surfaceline.has_point_type(DAMPointType.BERM_START_LAND_SIDE):
+        p = surfaceline.get_point_by_type(DAMPointType.BERM_START_LAND_SIDE).as_lz()
+        p5 = (p[0], min(pl_points[-1][1], p[1] - params["offset_surface_line"]))
+        pl_points.append(p5)
 
     # P6 = Teen dijk
     p = surfaceline.get_point_by_type(DAMPointType.DIKE_TOE_LAND_SIDE).as_lz()
-    p6 = (p[0], p[1] - params["offset_surface_line"])
+    p6 = (p[0], min(pl_points[-1][1], p[1] - params["offset_surface_line"]))
+    pl_points.append(p6)
 
     # P7 = OPTIONAL Insteek sloot waterzijde
     if surfaceline.has_point_type(DAMPointType.DITCH_START_WATER_SIDE):
         p = surfaceline.get_point_by_type(DAMPointType.DITCH_START_WATER_SIDE).as_lz()
         p7 = (p[0], waterlevel_polder)
-    else:
-        p7 = None
+        pl_points.append(p7)
 
     # P8 = Meest rechter punt
     p8 = [surfaceline.right, waterlevel_polder]
+    pl_points.append(p8)
 
     # vanaf de binnenkruin moeten we controleren of de punten niet boven het maaiveld (minus offset) uitkomen
     # en of de punten niet oplopen
-    pl_points = [p for p in [p1, p2, p3, p4, p5, p6, p7, p8] if p is not None]
     xl = p4[0]
 
     # deze controle doen we tot de sloot insteek of als deze er niet is tot het einde van de geometrie
