@@ -17,9 +17,9 @@ from objects.dam import (
     DAMLocation,
     DAMInput,
     DAMScenario,
-    DAMAnalysis,
     DAMStage,
 )
+from objects.analysis import DAMAnalysis
 
 BOTTOM_LEVEL = -9999.0
 
@@ -453,7 +453,8 @@ def import_rijnland(path):
         dam_surfacelines[k] = DAMSurfaceLine(
             id=k,
             points=[
-                DAMPoint(l=p[0], x=p[1], y=p[2], z=p[3], type=p[4]) for p in points
+                DAMPoint(l=p[0], x=p[1], y=p[2], z=p[3], point_type=p[4])
+                for p in points
             ],
             revetment=revetment,
             trafficload=trafficload,
@@ -475,8 +476,6 @@ def import_rijnland(path):
         )
         dam_locations.append(dam_location)
 
-    # TODO >> Create scenarios
-
     dam_input = DAMInput(
         soils=dam_soils,
         locations=dam_locations,
@@ -485,14 +484,14 @@ def import_rijnland(path):
     dam_scenarios = []
     for location in dam_locations:
         for subsoil in location.subsoils:
-            stages = []
             daily_level = design_waterlevel[location.id]["streefpeil"]
             extreme_level = design_waterlevel[location.id]["toetspeil"]
-            polder_level = waterlevels[location.id]["max"]
+            polder_level = waterlevels[location.id]["min"]
             traffic_load = traffic_loads[location.surfaceline.id]["magnitude"]
             hydraulic_head = hydraulic_heads[location.id]
 
             stage_1 = DAMStage(
+                name="dagelijks",
                 index=0,
                 traffic_load_magnitude=traffic_load,
                 waterlevel_river=daily_level,
@@ -500,6 +499,7 @@ def import_rijnland(path):
                 hydraulic_head=hydraulic_head,
             )
             stage_2 = DAMStage(
+                name="toetspeil",
                 index=1,
                 traffic_load_magnitude=traffic_load,
                 waterlevel_river=extreme_level,

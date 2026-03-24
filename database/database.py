@@ -12,9 +12,9 @@ from objects.dam import (
     DAMInput,
     DAMSurfaceLine,
     DAMSubSoil,
-    DAMAnalysis,
     DAMStage,
 )
+from objects.analysis import DAMAnalysis
 
 
 class DatabaseHandler:
@@ -143,7 +143,7 @@ class DatabaseHandler:
             # Save scenarios
             if analysis.scenarios:
                 for scenario in analysis.scenarios:
-                   
+
                     cursor.execute(
                         f"INSERT INTO scenarios (analysis_id, name, location_external_id, stages_data) VALUES ({self.p}, {self.p}, {self.p}, {self.p})",
                         (

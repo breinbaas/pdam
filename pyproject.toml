@@ -8,4 +8,5 @@ dependencies = [
     "d-geolib>=2.8.0",
     "pydantic>=2.12.5",
     "pyshp>=3.0.3",
+    "shapely>=2.1.2",
 ]

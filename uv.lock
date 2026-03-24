@@ -448,6 +448,7 @@ dependencies = [
     { name = "d-geolib" },
     { name = "pydantic" },
     { name = "pyshp" },
+    { name = "shapely" },
 ]
 
 [package.metadata]
@@ -455,6 +456,7 @@ requires-dist = [
     { name = "d-geolib", specifier = ">=2.8.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pyshp", specifier = ">=3.0.3" },
+    { name = "shapely", specifier = ">=2.1.2" },
 ]
 
 [[package]]
