@@ -65,7 +65,9 @@ class DAMAnalysis(BaseModel):
 
                 dm = DStabilityModel()
 
-                # Grondsoorten
+                ################
+                # GRONDSOORTEN #
+                ################
                 try:
                     soils = soils_algorithm(self.input.soils)
                     for soil in soils:
@@ -74,91 +76,112 @@ class DAMAnalysis(BaseModel):
                     flog.write(f"[FATAL] Error during soils_algorithm: {e}\n")
                     continue
 
-                # Freatische lijn
+                ###################
+                # ALLE GRONDLAGEN #
+                ###################
                 try:
-                    pl1 = phreatic_line_algorithm(
-                        surfaceline=scenario.location.surfaceline,
-                        waterlevel_river=scenario.stages[0].waterlevel_river,
-                        waterlevel_polder=scenario.stages[0].waterlevel_polder,
-                        params={
-                            "offset_surface_line": 0.1,
-                            "offset_dike_crest_water_side": 0.0,
-                            "offset_dike_crest_land_side": scenario.stages[
-                                1
-                            ].waterlevel_river
-                            - scenario.stages[0].waterlevel_river,
-                        },
+                    x0 = scenario.location.surfaceline.left
+                    x1 = scenario.location.surfaceline.get_point_by_type(
+                        DAMPointType.DIKE_TOE_LAND_SIDE
+                    ).l
+                    x2 = scenario.location.surfaceline.right
+
+                    soil_polygons_crest = subsoil.crest_profile.to_soil_polygons(
+                        left=x0, right=x1, max_depth=max_soilprofile_depth
                     )
-                    pl1_points = [Point(x=p[0], z=p[1]) for p in pl1]
-                    pl1_id = dm.add_head_line(
-                        points=pl1_points,
-                        label="Phreatic Line",
-                        is_phreatic_line=True,
+                    soil_polygons_toe = subsoil.toe_profile.to_soil_polygons(
+                        left=x1, right=x2, max_depth=max_soilprofile_depth
                     )
-                except Exception as e:
-                    flog.write(f"[FATAL] Error during phreatic_line_algorithm: {e}\n")
-                    continue
 
-                # Grondlagen totaal
-                x0 = scenario.location.surfaceline.left
-                x1 = scenario.location.surfaceline.get_point_by_type(
-                    DAMPointType.DIKE_TOE_LAND_SIDE
-                ).l
-                x2 = scenario.location.surfaceline.right
+                    # Alles boven het maaiveld weghalen
+                    surfaceline_left = scenario.location.surfaceline.left
+                    surfaceline_right = scenario.location.surfaceline.right
 
-                soil_polygons_crest = subsoil.crest_profile.to_soil_polygons(
-                    left=x0, right=x1, max_depth=max_soilprofile_depth
-                )
-                soil_polygons_toe = subsoil.toe_profile.to_soil_polygons(
-                    left=x1, right=x2, max_depth=max_soilprofile_depth
-                )
+                    pg_points_surfaceline = [
+                        p.as_lz() for p in scenario.location.surfaceline.points
+                    ]
+                    pg_points_surfaceline.append((surfaceline_right, 9999.0))
+                    pg_points_surfaceline.append((surfaceline_left, 9999.0))
+                    pg_points_surfaceline.append(pg_points_surfaceline[0])
+                    pg_surfaceline = Polygon(pg_points_surfaceline)
 
-                # Alles boven het maaiveld weghalen
-                surfaceline_left = scenario.location.surfaceline.left
-                surfaceline_right = scenario.location.surfaceline.right
-
-                pg_points_surfaceline = [
-                    p.as_lz() for p in scenario.location.surfaceline.points
-                ]
-                pg_points_surfaceline.append((surfaceline_right, 9999.0))
-                pg_points_surfaceline.append((surfaceline_left, 9999.0))
-                pg_points_surfaceline.append(pg_points_surfaceline[0])
-                pg_surfaceline = Polygon(pg_points_surfaceline)
-
-                soil_polygons_crest = extract_polygon_from_soilpolygons(
-                    soil_polygons_crest, pg_surfaceline
-                )
-                soil_polygons_toe = extract_polygon_from_soilpolygons(
-                    soil_polygons_toe, pg_surfaceline
-                )
-
-                soil_polygons = soil_polygons_crest + soil_polygons_toe
-
-                if scenario.location.surfaceline.revetment is not None:
-                    rev_left = scenario.location.surfaceline.revetment.left
-                    rev_right = scenario.location.surfaceline.revetment.right
-                    rev_thickness = scenario.location.surfaceline.revetment.thickness
-                    rev_soil_name = scenario.location.surfaceline.revetment.soil_name
-
-                    rev_points = scenario.location.surfaceline.points_between(
-                        rev_left, rev_right, include_start_and_end_point=True
+                    soil_polygons_crest = extract_polygon_from_soilpolygons(
+                        soil_polygons_crest, pg_surfaceline
                     )
-                    inverse_rev_points = [
-                        (p[0], p[1] - rev_thickness) for p in rev_points
-                    ][::-1]
-                    rev_spg = SoilPolygon(
-                        soil_name=rev_soil_name, points=rev_points + inverse_rev_points
+                    soil_polygons_toe = extract_polygon_from_soilpolygons(
+                        soil_polygons_toe, pg_surfaceline
                     )
 
                     soil_polygons = soil_polygons_crest + soil_polygons_toe
 
-                    soil_polygons = add_soilpolygon_to_soilpolygons(
-                        rev_spg, soil_polygons
-                    )
+                    if scenario.location.surfaceline.revetment is not None:
+                        rev_left = scenario.location.surfaceline.revetment.left
+                        rev_right = scenario.location.surfaceline.revetment.right
+                        rev_thickness = (
+                            scenario.location.surfaceline.revetment.thickness
+                        )
+                        rev_soil_name = (
+                            scenario.location.surfaceline.revetment.soil_name
+                        )
 
-                for spg in soil_polygons:
-                    points = [Point(x=p[0], z=p[1]) for p in spg.points]
-                    dm.add_layer(points, spg.soil_name)
+                        rev_points = scenario.location.surfaceline.points_between(
+                            rev_left, rev_right, include_start_and_end_point=True
+                        )
+                        inverse_rev_points = [
+                            (p[0], p[1] - rev_thickness) for p in rev_points
+                        ][::-1]
+                        rev_spg = SoilPolygon(
+                            soil_name=rev_soil_name,
+                            points=rev_points + inverse_rev_points,
+                        )
+
+                        soil_polygons = soil_polygons_crest + soil_polygons_toe
+
+                        soil_polygons = add_soilpolygon_to_soilpolygons(
+                            rev_spg, soil_polygons
+                        )
+
+                except Exception as e:
+                    flog.write(f"[FATAL] Error during soil_polygons_algorithm: {e}\n")
+                    continue
+
+                #####################
+                # FREATISCHE LIJNEN #
+                #####################
+                for i, stage in enumerate(scenario.stages):
+                    if i > 0:
+                        dm.add_stage(label=stage.name, set_current=True)
+                    else:
+                        dm.datastructure.scenarios[0].Stages[0].Label = stage.name
+                    try:
+                        for spg in soil_polygons:
+                            points = [Point(x=p[0], z=p[1]) for p in spg.points]
+                            dm.add_layer(points, spg.soil_name)
+
+                        pl1 = phreatic_line_algorithm(
+                            surfaceline=scenario.location.surfaceline,
+                            waterlevel_river=stage.waterlevel_river,
+                            waterlevel_polder=stage.waterlevel_polder,
+                            params={
+                                "offset_surface_line": 0.1,
+                                "offset_dike_crest_water_side": 0.0,
+                                "offset_dike_crest_land_side": scenario.stages[
+                                    1
+                                ].waterlevel_river
+                                - scenario.stages[0].waterlevel_river,
+                            },  # TODO > dit moet eigenlijk in create_stix worden meegegeven
+                        )
+                        pl1_points = [Point(x=p[0], z=p[1]) for p in pl1]
+                        pl1_id = dm.add_head_line(
+                            points=pl1_points,
+                            label="Phreatic Line",
+                            is_phreatic_line=True,
+                        )
+                    except Exception as e:
+                        flog.write(
+                            f"[FATAL] Error during phreatic_line_algorithm: {e}\n"
+                        )
+                        continue
 
                 # TODO add second stage
 
