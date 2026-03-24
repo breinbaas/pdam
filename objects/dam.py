@@ -179,6 +179,29 @@ class DAMSurfaceLine(BaseModel):
                 return True
         return False
 
+    def points_between(
+        self, rev_left: float, rev_right: float, include_start_and_end_point=True
+    ):
+        points = []
+
+        p1 = (rev_left, self.z_at(rev_left))
+        p2 = (rev_right, self.z_at(rev_right))
+
+        if include_start_and_end_point:
+            for point in self.points:
+                if rev_left <= point.l <= rev_right:
+                    points.append((point.l, point.z))
+            if points[0] != p1:
+                points.insert(0, p1)
+            if points[-1] != p2:
+                points.append(p2)
+
+        else:
+            for point in self.points:
+                if rev_left < point.l < rev_right:
+                    points.append((point.l, point.z))
+        return points
+
     def z_at(self, l: float) -> float:
         for i in range(len(self.points) - 1):
             if self.points[i].l <= l <= self.points[i + 1].l:

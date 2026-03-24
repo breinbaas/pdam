@@ -59,6 +59,18 @@ def extract_polygon_from_soilpolygons(
     return result_polygons
 
 
+def add_soilpolygon_to_soilpolygons(
+    soilpolygon_to_add: SoilPolygon, soilpolygons: List[SoilPolygon]
+) -> List[SoilPolygon]:
+    # Subtract the new polygon from all existing ones to remove overlaps
+    pg_add_shapely = soilpolygon_to_add.to_shapely()
+    result = extract_polygon_from_soilpolygons(soilpolygons, pg_add_shapely)
+
+    result.append(soilpolygon_to_add)
+
+    return result
+
+
 def clean_points(points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
     i = 1
     while i < len(points) - 1:

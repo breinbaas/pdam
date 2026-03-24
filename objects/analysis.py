@@ -1,3 +1,4 @@
+from objects.dam import SoilPolygon
 import logging
 from pathlib import Path
 from typing import List
@@ -8,7 +9,10 @@ from geolib.models.dstability import DStabilityModel
 from geolib.geometry.one import Point
 
 from objects.dam import DAMInput, DAMScenario, DAMPointType
-from helpers.geometry import extract_polygon_from_soilpolygons
+from helpers.geometry import (
+    extract_polygon_from_soilpolygons,
+    add_soilpolygon_to_soilpolygons,
+)
 
 
 class DAMAnalysis(BaseModel):
@@ -23,7 +27,7 @@ class DAMAnalysis(BaseModel):
         max_soilprofile_depth: float,
         params: dict = {},
     ):
-        for scenario in self.scenarios[:2]:
+        for scenario in self.scenarios:
             for (
                 subsoil
             ) in scenario.location.subsoils:  # a scenario can contain multiple subsoils
@@ -128,14 +132,37 @@ class DAMAnalysis(BaseModel):
                     soil_polygons_toe, pg_surfaceline
                 )
 
-                for spg in soil_polygons_crest:
+                soil_polygons = soil_polygons_crest + soil_polygons_toe
+
+                if scenario.location.surfaceline.revetment is not None:
+                    rev_left = scenario.location.surfaceline.revetment.left
+                    rev_right = scenario.location.surfaceline.revetment.right
+                    rev_thickness = scenario.location.surfaceline.revetment.thickness
+                    rev_soil_name = scenario.location.surfaceline.revetment.soil_name
+
+                    rev_points = scenario.location.surfaceline.points_between(
+                        rev_left, rev_right, include_start_and_end_point=True
+                    )
+                    inverse_rev_points = [
+                        (p[0], p[1] - rev_thickness) for p in rev_points
+                    ][::-1]
+                    rev_spg = SoilPolygon(
+                        soil_name=rev_soil_name, points=rev_points + inverse_rev_points
+                    )
+
+                    soil_polygons = soil_polygons_crest + soil_polygons_toe
+
+                    soil_polygons = add_soilpolygon_to_soilpolygons(
+                        rev_spg, soil_polygons
+                    )
+
+                for spg in soil_polygons:
                     points = [Point(x=p[0], z=p[1]) for p in spg.points]
                     dm.add_layer(points, spg.soil_name)
 
-                for spg in soil_polygons_toe:
-                    points = [Point(x=p[0], z=p[1]) for p in spg.points]
-                    dm.add_layer(points, spg.soil_name)
+                # TODO add second stage
 
                 stix_path = Path(output_path) / f"{name}.stix"
+
                 dm.serialize(stix_path)
                 flog.close()
