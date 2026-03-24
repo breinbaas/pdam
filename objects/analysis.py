@@ -25,7 +25,7 @@ class DAMAnalysis(BaseModel):
         soils_algorithm: callable,
         phreatic_line_algorithm: callable,
         max_soilprofile_depth: float,
-        params: dict = {},
+        params: dict = {},  # TODO > bedenken hoe dit opgelost kan worden (zie andere TODO)
     ):
         for scenario in self.scenarios:
             for (
